@@ -1,0 +1,2 @@
+# Adverserial-Search-on-m-n-k--games
+Implementation of adversarial search by the Minimax algorithm and α-β pruning to play (m, n, k)-games. An (m, n, k)-game is a board game in which two players take turns in placing X's and O's on an m × n board, the winner being the player who first gets 'k' Xs (resp. Os) in a row, horizontally, vertically, or diagonally. Thus, tic-tac-toe is the (3, 3, 3)-game. More information can be found at https://en.wikipedia.org/wiki/M,n,k-game
