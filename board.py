@@ -1,6 +1,7 @@
 from typing import List, Tuple
 import random
 import numpy as np
+import time
 
 
 UPPER_CASE_OFFSET = 64
@@ -32,8 +33,11 @@ class Game(object):
                 {(i,j) for i in range(1,self.m+1) for j in range(1, self.n+1)}
         self.previous_moves_p1 = set()
         self.previous_moves_p2 = set()
-        self.previous_moves = set()
         self.state = (self.previous_moves_p1, self.previous_moves_p2)
+        self.directions =\
+            (self.horizontal, self.diagonal_R, self.verical, self.diagonal_L)
+
+        self.buffer = ExperienceBuffer()
 
 
     def array_to_board_coordinates(self, coordinates):
@@ -57,32 +61,33 @@ class Game(object):
 
 
     def board_to_array_coordinates(self, coordinate):
-        x_array = ord(coordinate[0]) - UPPER_CASE_OFFSET
+        x_array = ord(coordinate[0].upper()) - UPPER_CASE_OFFSET
         y_array = int(coordinate[1])
         return(x_array, y_array)
 
 
     def play(self):
+        plays = 0
         turn = 1
+        last_turn = 2
         state = self.state
         game.drawboard(self.state)
 
         while True:
-            terminal, winning_player = self.is_terminal(self.state)
-            if terminal:
-                if winning_player == 1:
-                    print('Player 1 WON!')
-                elif winning_player == 2:
-                    print('Player 2 WON!')
-                elif winning_player == 0:
-                    print('Its a TIE!')
-                break
-
             state = self.state
             if turn == 1:
                 print('Player 1 to move...')
+                if plays == 0:
+                    action = list(self.actions(state))
+                else:
+                    start_time = time.time()
+                    action = self.max_action(state)
+                    end_time = time.time()
+                    print(end_time-start_time)
                 start, moves, end =\
-                        self.array_to_board_coordinates(self.max_action(state))
+                        self.array_to_board_coordinates(action)
+
+
                 print(start + moves + end)
                 action = \
                     self.board_to_array_coordinates(input('Input your move: '))
@@ -91,6 +96,8 @@ class Game(object):
                     self.state = game.resulting_state(state, action, 1)
                     game.drawboard(self.state)
                     turn = 2
+                    last_turn = 1
+                    plays += 1
                 else:
                     print('Invalid move!. Choose an unoccupied cell.')
                     turn = 1
@@ -103,13 +110,26 @@ class Game(object):
                 self.state = game.resulting_state(state, action, 2)
                 game.drawboard(self.state)
                 turn = 1
+                last_turn = 2
+                plays += 1
+
+            terminal, winning_player = self.is_terminal(self.state, action, last_turn)
+            if terminal:
+                if winning_player == 1:
+                    print('Player 1 WON!')
+                elif winning_player == 2:
+                    print('Player 2 WON!')
+                elif winning_player == 0:
+                    print('Its a TIE!')
+                break
 
 
     def min_action(self, state):
         actions = []
         values = []
         for action in self.actions(state):
-            value = self.max_value(self.resulting_state(state, action, 2))
+            new_state = self.resulting_state(state, action, 2)
+            value = self.max_value(new_state, action)
             actions.append(action)
             values.append(value)
 
@@ -120,7 +140,8 @@ class Game(object):
         actions = []
         values = []
         for action in self.actions(state):
-            value = self.min_value(self.resulting_state(state, action, 1))
+            new_state = self.resulting_state(state, action, 1)
+            value = self.min_value(new_state, action)
             actions.append(action)
             values.append(value)
         argmax = np.argwhere(values == np.amax(values)).flatten()
@@ -128,34 +149,36 @@ class Game(object):
         return(actions[argmax])
 
 
-
-    def max_value(self, state):
-        terminal, winning_player = self.is_terminal(state)
+    def max_value(self, state, last_action, player=2):
+        terminal, winning_player = self.is_terminal(state, last_action, player)
         if terminal:
             return(self.utility(winning_player))
         v = -float('inf')
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 1)
-            v = max(v, self.min_value(new_state))
+            value = self.buffer.lookup(new_state)
+            if value == None:
+                v = max(v, self.min_value(new_state, action))
+                self.buffer.add(state, v)
+            else:
+                v = max(v, value)
         return v
 
 
-    def min_value(self, state):
-        terminal, winning_player = self.is_terminal(state)
+    def min_value(self, state, last_action, player=1):
+        terminal, winning_player = self.is_terminal(state, last_action, player)
         if terminal:
             return(self.utility(winning_player))
         v = float('inf')
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 2)
-            v = min(v, self.max_value(new_state))
+            value = self.buffer.lookup(new_state)
+            if value == None:
+                v = min(v, self.max_value(new_state, action))
+                self.buffer.add(state, v)
+            else:
+                v = min(v, value)
         return v
-
-
-    def player(self, state):
-        if len(state[0]) == len(state[1]):
-            return 1
-        else:
-            return 2
 
 
     def actions(self, state):
@@ -181,60 +204,54 @@ class Game(object):
             return 0
 
 
-    def is_terminal(self, state):
-        winning_player = None
-        terminal = False
+    def horizontal(self, x, y, step):
+        return(x+step, y)
 
-        for player, player_state in enumerate(state, 1):
-            if terminal:
-                break
-            for move in player_state:
-                terminal = self.combination_length(state, player, move[0], move[1])
-                if terminal:
-                    winning_player = player
+    def diagonal_R(self, x, y, step):
+        return(x+step, y+step)
+
+    def verical(self, x, y, step):
+        return(x, y+step)
+
+    def diagonal_L(self, x, y, step):
+        return(x-step, y+step)
+
+
+    def is_terminal(self, state, last_action, player):
+        terminal = False
+        winning_player = None
+        previous_moves = state[player - 1]
+        x = last_action[0]
+        y = last_action[1]
+
+        for direction in self.directions:
+            comb_len = 1
+            step = 1
+            while True:
+                if direction(x, y, step) in previous_moves:
+                    comb_len += 1
+                    step += 1
+                else:
                     break
+
+            step = -1
+            while True:
+                if direction(x, y, step) in previous_moves:
+                    comb_len += 1
+                    step -= 1
+                else:
+                    break
+
+            if comb_len >= self.k:
+                terminal = True
+                winning_player = player
+                break
 
         if not terminal and len(state[0]) + len(state[1]) == self.n*self.m:
             winning_player = 0
             terminal = True
 
         return terminal, winning_player
-
-
-    def combination_length(self, state, player, x, y):
-        terminal = False
-
-        if player == 1:
-            previous_moves = state[0]
-        elif player == 2:
-            previous_moves = state[1]
-
-        def horizontal(x, y, step):
-            return(x+step, y)
-
-        def diagonal_R(x, y, step):
-            return(x+step, y+step)
-
-        def verical(x, y, step):
-            return(x, y+step)
-
-        def diagonal_L(x, y, step):
-            return(x-step, y+step)
-
-        directions = [horizontal, diagonal_R, verical, diagonal_L]
-
-        for direction in directions:
-            if terminal:
-                break
-            step=1
-            while True:
-                if direction(x, y, step) in previous_moves:
-                    step += 1
-                else:
-                    if step >= self.k:
-                        terminal = True
-                    break
-        return terminal
 
 
     def is_valid(self, state, action):
@@ -246,7 +263,6 @@ class Game(object):
         return(all([x_bound, y_bound, not_occupied_p1, not_occupied_p2]))
 
 
-
     def drawboard(self, state):
         array_board = [[' ' for _ in range(self.m)] for _ in range(self.n)]
         for x, y in state[0]:
@@ -256,7 +272,6 @@ class Game(object):
             array_board[self.n - y][x - 1] = 'O'
 
         board_str = self.get_board_string(array_board)
-
         print(board_str)
 
 
@@ -283,9 +298,29 @@ class Game(object):
 
         return board_str
 
+class ExperienceBuffer:
 
+    def __init__(self):
+        self.buffer = {}
+
+    def add(self, state, value):
+        frozen_state = (frozenset(state[0]), frozenset(state[1]))
+        if frozenset not in self.buffer:
+            self.buffer[frozen_state] = value
+        else:
+            pass
+
+    def lookup(self, state):
+        frozen_state = (frozenset(state[0]), frozenset(state[1]))
+        if frozen_state in self.buffer:
+            return(self.buffer[frozen_state])
+        else:
+            return None
 
 
 if __name__ == "__main__":
-    game = Game(4, 4, 4)
+    game = Game(5, 5, 5)
+    # state = game.resulting_state(game.state, (1,1), 1)
+    # game.drawboard(state)
+    # print(game.is_terminal(state, (1,1), 1))
     game.play()
