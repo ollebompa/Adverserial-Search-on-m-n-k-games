@@ -104,6 +104,7 @@ class Game(object):
             if self.is_valid(self.state, action):
                 self.state = game.resulting_state(state, action, player)
                 terminal, winning_player = self.is_terminal(self.state, action, player)
+                self.buffer.clear()
                 player = player%2 + 1
             else:
                 print(message_invalid)
@@ -129,42 +130,52 @@ class Game(object):
         if terminal:
             return(self.utility(winning_player))
         v = -float('inf')
+        v_buffer, cut_flag = self.buffer.lookup(state)
+        if v_buffer == None:
+            pass
+        elif v_buffer != None and not cut_flag:
+            return v_buffer
+        elif v_buffer != None and cut_flag:
+            if v_buffer >= beta:
+                return v_buffer
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 1)
-            v_new = self.buffer.lookup(new_state)
-            if v_new == None:
-                v_new = self.min_value(new_state, alpha, beta, action, depth + 1)
-                self.buffer.add(new_state, v_new)
+            v_new = self.min_value(new_state, alpha, beta, action, depth + 1)
 
             v = max(v, v_new)
 
             if depth == 0:
-                print('hi')
                 if action in self.action_values:
                     self.action_values[action][0] = v_new
                 else:
                     self.action_values[action] = [v_new, False]
             if v >= beta:
+                self.buffer.add(state, v, True)
                 if depth == 1:
                     self.action_values[last_action] = [None, True]
-                # return v
-
+                return v
             alpha = max(alpha, v)
+        self.buffer.add(state, v, False)
         return v
 
 
     def min_value(self, state, alpha, beta, last_action, depth, player=1):
+        cut = False
         terminal, winning_player = self.is_terminal(state, last_action, player)
         if terminal:
             return(self.utility(winning_player))
         v = float('inf')
+        v_buffer, cut_flag = self.buffer.lookup(state)
+        if v_buffer == None:
+            pass
+        elif v_buffer != None and not cut_flag:
+            return v_buffer
+        elif v_buffer != None and cut_flag:
+            if v_buffer <= alpha:
+                return v_buffer
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 2)
-            v_new = self.buffer.lookup(new_state)
-            if v_new == None:
-                v_new = self.max_value(new_state, alpha, beta, action, depth + 1)
-                self.buffer.add(new_state, v_new)
-
+            v_new = self.max_value(new_state, alpha, beta, action, depth + 1)
             v = min(v, v_new)
             if depth == 0:
                 if action in self.action_values:
@@ -172,43 +183,45 @@ class Game(object):
                 else:
                     self.action_values[action] = [v_new, False]
             if v <= alpha:
+                self.buffer.add(state, v, True)
                 if depth == 1:
                     self.action_values[last_action] = [None, True]
-                # return v
-
+                return v
             beta = min(beta, v)
+        self.buffer.add(state, v, False)
         return v
 
 
     def actions(self, state):
-        # column_priority = [0 for _ in range(self.m)]
-        # row_priority = [0 for _ in range(self.n)]
-        # dia_priority = [0 for _ in range(2)]
-        # for move in state[0]:
-        #     column_priority[move[0] - 1] += 1
-        #     row_priority[move[1] - 1] += 1
-        #     if move[0] == move[1]:
-        #         dia_priority[0] += 1
-        #     if move[0] + self.m -1 == move[1]:
-        #         dia_priority[1] += 1
-        # for move in state[1]:
-        #     column_priority[move[0] - 1] += 1
-        #     row_priority[move[1] - 1] += 1
-        #     if move[0] == move[1]:
-        #         dia_priority[0] += 1
-        #     elif move[0] + self.m -1 == move[1]:
-        #         dia_priority[1] += 1
-        # moves = list(self.possible_moves - state[0] - state[1])
-        # move_priority = []
-        # for move in moves:
-        #     prioity = column_priority[move[0] - 1] + row_priority[move[1] - 1]
-        #     if move[0] == move[1]:
-        #         prioity+= dia_priority[0]
-        #     elif move[0] + self.m -1 == move[1]:
-        #         prioity += dia_priority[1]
-        #     move_priority.append(prioity)
-        # prioritised_moves = [move for _, move in sorted(zip(move_priority, moves), reverse=True)]
-        return(self.possible_moves - state[0] - state[1])
+        column_priority = [0 for _ in range(self.m)]
+        row_priority = [0 for _ in range(self.n)]
+        dia_priority = [0 for _ in range(2)]
+        for move in state[0]:
+            column_priority[move[0] - 1] += 1
+            row_priority[move[1] - 1] += 1
+            if move[0] == move[1]:
+                dia_priority[0] += 1
+            if move[0] + self.m -1 == move[1]:
+                dia_priority[1] += 1
+        for move in state[1]:
+            column_priority[move[0] - 1] += 1
+            row_priority[move[1] - 1] += 1
+            if move[0] == move[1]:
+                dia_priority[0] += 1
+            elif move[0] + self.m -1 == move[1]:
+                dia_priority[1] += 1
+        moves = list(self.possible_moves - state[0] - state[1])
+        move_priority = []
+        for move in moves:
+            prioity = column_priority[move[0] - 1] + row_priority[move[1] - 1]
+            if move[0] == move[1]:
+                prioity+= dia_priority[0]
+            elif move[0] + self.m -1 == move[1]:
+                prioity += dia_priority[1]
+            move_priority.append(prioity)
+        prioritised_moves = [move for _, move in sorted(zip(move_priority, moves), reverse=True)]
+        return(prioritised_moves)
+        # return(self.possible_moves - state[0] - state[1])
 
 
     def resulting_state(self, state:tuple, action:tuple, player):
@@ -351,10 +364,10 @@ class ExperienceBuffer:
     def __init__(self):
         self.buffer = {}
 
-    def add(self, state, value):
+    def add(self, state, value, cut_flag):
         frozen_state = (frozenset(state[0]), frozenset(state[1]))
         if frozenset not in self.buffer:
-            self.buffer[frozen_state] = value
+            self.buffer[frozen_state] = [value, cut_flag]
         else:
             pass
 
@@ -363,11 +376,13 @@ class ExperienceBuffer:
         if frozen_state in self.buffer:
             return(self.buffer[frozen_state])
         else:
-            return None
+            return None, False
 
+    def clear(self):
+        self.buffer.clear()
 
 if __name__ == "__main__":
-    game = Game(3, 3, 3, automatic_players = [1, 2 ], manual_players = [], display = True)
+    game = Game(3, 3, 3, automatic_players = [1, 2 ], manual_players = [1], display = True)
     # state = game.resulting_state(game.state, (1,1), 1)
     # state = game.resulting_state(state, (2,2), 2)
     # state = game.resulting_state(state, (1,2), 1)
