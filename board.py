@@ -131,11 +131,15 @@ class Game(object):
         v = -float('inf')
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 1)
-            v_new = self.min_value(new_state, alpha, beta, action, depth + 1)
+            v_new = self.buffer.lookup(new_state)
+            if v_new == None:
+                v_new = self.min_value(new_state, alpha, beta, action, depth + 1)
+                self.buffer.add(new_state, v_new)
+
             v = max(v, v_new)
 
             if depth == 0:
-
+                print('hi')
                 if action in self.action_values:
                     self.action_values[action][0] = v_new
                 else:
@@ -156,10 +160,13 @@ class Game(object):
         v = float('inf')
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 2)
-            v_new = self.max_value(new_state, alpha, beta, action, depth + 1)
+            v_new = self.buffer.lookup(new_state)
+            if v_new == None:
+                v_new = self.max_value(new_state, alpha, beta, action, depth + 1)
+                self.buffer.add(new_state, v_new)
+
             v = min(v, v_new)
             if depth == 0:
-
                 if action in self.action_values:
                     self.action_values[action][0] = v_new
                 else:
@@ -360,7 +367,7 @@ class ExperienceBuffer:
 
 
 if __name__ == "__main__":
-    game = Game(3, 3, 3, automatic_players = [1, 2], manual_players = [1], display = True)
+    game = Game(3, 3, 3, automatic_players = [1, 2 ], manual_players = [], display = True)
     # state = game.resulting_state(game.state, (1,1), 1)
     # state = game.resulting_state(state, (2,2), 2)
     # state = game.resulting_state(state, (1,2), 1)
