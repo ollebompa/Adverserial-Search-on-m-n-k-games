@@ -382,7 +382,7 @@ class ExperienceBuffer:
         self.buffer.clear()
 
 if __name__ == "__main__":
-    game = Game(3, 3, 3, automatic_players = [1, 2 ], manual_players = [1], display = True)
+    game = Game(4, 4, 4, automatic_players = [1,2], manual_players = [], display = True)
     # state = game.resulting_state(game.state, (1,1), 1)
     # state = game.resulting_state(state, (2,2), 2)
     # state = game.resulting_state(state, (1,2), 1)
