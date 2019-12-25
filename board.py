@@ -135,6 +135,7 @@ class Game(object):
             v = max(v, v_new)
 
             if depth == 0:
+
                 if action in self.action_values:
                     self.action_values[action][0] = v_new
                 else:
@@ -142,7 +143,7 @@ class Game(object):
             if v >= beta:
                 if depth == 1:
                     self.action_values[last_action] = [None, True]
-                return v
+                # return v
 
             alpha = max(alpha, v)
         return v
@@ -157,8 +158,8 @@ class Game(object):
             new_state = self.resulting_state(state, action, 2)
             v_new = self.max_value(new_state, alpha, beta, action, depth + 1)
             v = min(v, v_new)
-
             if depth == 0:
+
                 if action in self.action_values:
                     self.action_values[action][0] = v_new
                 else:
@@ -166,13 +167,40 @@ class Game(object):
             if v <= alpha:
                 if depth == 1:
                     self.action_values[last_action] = [None, True]
-                return v
+                # return v
 
             beta = min(beta, v)
         return v
 
 
     def actions(self, state):
+        # column_priority = [0 for _ in range(self.m)]
+        # row_priority = [0 for _ in range(self.n)]
+        # dia_priority = [0 for _ in range(2)]
+        # for move in state[0]:
+        #     column_priority[move[0] - 1] += 1
+        #     row_priority[move[1] - 1] += 1
+        #     if move[0] == move[1]:
+        #         dia_priority[0] += 1
+        #     if move[0] + self.m -1 == move[1]:
+        #         dia_priority[1] += 1
+        # for move in state[1]:
+        #     column_priority[move[0] - 1] += 1
+        #     row_priority[move[1] - 1] += 1
+        #     if move[0] == move[1]:
+        #         dia_priority[0] += 1
+        #     elif move[0] + self.m -1 == move[1]:
+        #         dia_priority[1] += 1
+        # moves = list(self.possible_moves - state[0] - state[1])
+        # move_priority = []
+        # for move in moves:
+        #     prioity = column_priority[move[0] - 1] + row_priority[move[1] - 1]
+        #     if move[0] == move[1]:
+        #         prioity+= dia_priority[0]
+        #     elif move[0] + self.m -1 == move[1]:
+        #         prioity += dia_priority[1]
+        #     move_priority.append(prioity)
+        # prioritised_moves = [move for _, move in sorted(zip(move_priority, moves), reverse=True)]
         return(self.possible_moves - state[0] - state[1])
 
 
