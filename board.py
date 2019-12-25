@@ -13,22 +13,35 @@ class Game(object):
     def __init__(self,
                  m:int,
                  n:int,
-                 k:int):
+                 k:int,
+                 automatic_players:List = [1, 2],
+                 manual_players:List = [1],
+                 display:bool = True
+                 ):
         """
         :param m:
         :param n:
         :param k:
         """
-        self.initilize_game(m, n, k)
+        self.initilize_game(m, n, k, automatic_players, manual_players, display)
 
 
-    def initilize_game(self, m, n, k):
+    def initilize_game(self,
+                          m,
+                          n,
+                          k,
+                          automatic_players,
+                          manual_players,
+                          display):
         self.m = m
         self.n = n
         self.k = k
 
-        self.state= (set(), set())
+        self.automatic_players = automatic_players
+        self.manual_players = manual_players
+        self.display = display
 
+        self.state= (set(), set())
         self.possible_moves =\
                 {(i,j) for i in range(1,self.m+1) for j in range(1, self.n+1)}
         self.previous_moves_p1 = set()
@@ -39,81 +52,23 @@ class Game(object):
 
         self.buffer = ExperienceBuffer()
 
-
-    def array_to_board_coordinates(self, coordinates):
-        board_coordinates = []
-        for x, y in coordinates:
-            x_board = chr(x + UPPER_CASE_OFFSET)
-            y_board = str(y)
-            board_coordinates.append(x_board + y_board)
-        board_coordinates.sort()
-        moves = str()
-        for coordinate in board_coordinates:
-            moves += coordinate + ', '
-        moves = moves[:-2]
-        end = str()
-        if len(board_coordinates) == 1:
-            end = '.'
-        else:
-            end = '. They are all equally good in this position.'
-        start = 'The computer recommends the move(s): '
-        return start, moves, end
-
-
-    def board_to_array_coordinates(self, coordinate):
-        x_array = ord(coordinate[0].upper()) - UPPER_CASE_OFFSET
-        y_array = int(coordinate[1])
-        return(x_array, y_array)
+        self.action_values = {}
 
 
     def play(self):
-        plays = 0
-        turn = 1
-        last_turn = 2
-        state = self.state
-        game.drawboard(self.state)
+        player = 1
+        terminal = False
+        winning_player = None
+
+        message_manual = 'The computer recommends the move(s): '
+        message_automatic = 'The computer makes the move: '
+        message_invalid = 'Invalid move!. That cell is either occupied or out of bounds.'
 
         while True:
             state = self.state
-            if turn == 1:
-                print('Player 1 to move...')
-                if plays == 0:
-                    action = list(self.actions(state))
-                else:
-                    start_time = time.time()
-                    action = self.max_action(state)
-                    end_time = time.time()
-                    print(end_time-start_time)
-                start, moves, end =\
-                        self.array_to_board_coordinates(action)
-
-
-                print(start + moves + end)
-                action = \
-                    self.board_to_array_coordinates(input('Input your move: '))
-                valid = self.is_valid(self.state, action)
-                if valid:
-                    self.state = game.resulting_state(state, action, 1)
-                    game.drawboard(self.state)
-                    turn = 2
-                    last_turn = 1
-                    plays += 1
-                else:
-                    print('Invalid move!. Choose an unoccupied cell.')
-                    turn = 1
-
-            elif turn == 2:
-                print('Player 2 to move...')
-                action = self.min_action(state)
-                move = self.array_to_board_coordinates([action])[1]
-                print(f'The computer makes move: {move}')
-                self.state = game.resulting_state(state, action, 2)
+            if self.display:
                 game.drawboard(self.state)
-                turn = 1
-                last_turn = 2
-                plays += 1
 
-            terminal, winning_player = self.is_terminal(self.state, action, last_turn)
             if terminal:
                 if winning_player == 1:
                     print('Player 1 WON!')
@@ -123,61 +78,97 @@ class Game(object):
                     print('Its a TIE!')
                 break
 
+            print(f'Player {player} to move...')
 
-    def min_action(self, state):
-        actions = []
-        values = []
-        for action in self.actions(state):
-            new_state = self.resulting_state(state, action, 2)
-            value = self.max_value(new_state, action)
-            actions.append(action)
-            values.append(value)
+            if player in self.automatic_players and player in self.manual_players:
+                s = time.time()
+                actions = self.minimax_action(state, player)
+                s2 = time.time()
+                print(s2-s)
+                board_coordinates = self.array_to_board_coordinates(actions)
+                message = message_manual + board_coordinates
+                print(message)
+                board_coordinates = input('Input your move: ')
+                action = self.board_to_array_coordinates(board_coordinates)
 
-        return(actions[np.argmin(values)])
+            elif player in self.automatic_players:
+                action = self.minimax_action(state, player)[0]
+                board_coordinates = self.array_to_board_coordinates([action])
+                message = message_automatic + board_coordinates
+                print(message)
+
+            elif player in self.manual_players:
+                board_coordinates = input('Input your move: ')
+                action = self.board_to_array_coordinates(board_coordinates)
+
+            if self.is_valid(self.state, action):
+                self.state = game.resulting_state(state, action, player)
+                terminal, winning_player = self.is_terminal(self.state, action, player)
+                player = player%2 + 1
+            else:
+                print(message_invalid)
 
 
-    def max_action(self, state):
-        actions = []
-        values = []
-        for action in self.actions(state):
-            new_state = self.resulting_state(state, action, 1)
-            value = self.min_value(new_state, action)
-            actions.append(action)
-            values.append(value)
-        argmax = np.argwhere(values == np.amax(values)).flatten()
-        actions = np.array(actions)
-        return(actions[argmax])
+    def minimax_action(self, state, player):
+        alpha = -float('inf')
+        beta = float('inf')
+        optimal_actions = []
+        self.action_values.clear()
+        if player == 1:
+            optimal_value = self.max_value(state, alpha, beta, last_action = None, depth = 0)
+        elif player == 2:
+            optimal_value = self.min_value(state, alpha, beta, last_action = None, depth = 0)
+        for action, value in self.action_values.items():
+            if value[0] == optimal_value and not value[1]:
+                optimal_actions.append(action)
+        return optimal_actions
 
 
-    def max_value(self, state, last_action, player=2):
+    def max_value(self, state, alpha, beta, last_action, depth, player=2):
         terminal, winning_player = self.is_terminal(state, last_action, player)
         if terminal:
             return(self.utility(winning_player))
         v = -float('inf')
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 1)
-            value = self.buffer.lookup(new_state)
-            if value == None:
-                v = max(v, self.min_value(new_state, action))
-                self.buffer.add(state, v)
-            else:
-                v = max(v, value)
+            v_new = self.min_value(new_state, alpha, beta, action, depth + 1)
+            v = max(v, v_new)
+
+            if depth == 0:
+                if action in self.action_values:
+                    self.action_values[action][0] = v_new
+                else:
+                    self.action_values[action] = [v_new, False]
+            if v >= beta:
+                if depth == 1:
+                    self.action_values[last_action] = [None, True]
+                return v
+
+            alpha = max(alpha, v)
         return v
 
 
-    def min_value(self, state, last_action, player=1):
+    def min_value(self, state, alpha, beta, last_action, depth, player=1):
         terminal, winning_player = self.is_terminal(state, last_action, player)
         if terminal:
             return(self.utility(winning_player))
         v = float('inf')
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 2)
-            value = self.buffer.lookup(new_state)
-            if value == None:
-                v = min(v, self.max_value(new_state, action))
-                self.buffer.add(state, v)
-            else:
-                v = min(v, value)
+            v_new = self.max_value(new_state, alpha, beta, action, depth + 1)
+            v = min(v, v_new)
+
+            if depth == 0:
+                if action in self.action_values:
+                    self.action_values[action][0] = v_new
+                else:
+                    self.action_values[action] = [v_new, False]
+            if v <= alpha:
+                if depth == 1:
+                    self.action_values[last_action] = [None, True]
+                return v
+
+            beta = min(beta, v)
         return v
 
 
@@ -220,6 +211,8 @@ class Game(object):
     def is_terminal(self, state, last_action, player):
         terminal = False
         winning_player = None
+        if last_action == None:
+            return terminal, winning_player
         previous_moves = state[player - 1]
         x = last_action[0]
         y = last_action[1]
@@ -298,6 +291,26 @@ class Game(object):
 
         return board_str
 
+
+    def array_to_board_coordinates(self, coordinates):
+        board_coordinates = []
+        for x, y in coordinates:
+            x_board = chr(x + UPPER_CASE_OFFSET)
+            y_board = str(y)
+            board_coordinates.append(x_board + y_board)
+        board_coordinates.sort()
+        coordinate_string = str()
+        for coordinate in board_coordinates:
+            coordinate_string += coordinate + ', '
+        return coordinate_string[:-2] + '.'
+
+
+    def board_to_array_coordinates(self, coordinate):
+        x_array = ord(coordinate[0].upper()) - UPPER_CASE_OFFSET
+        y_array = int(coordinate[1])
+        return(x_array, y_array)
+
+
 class ExperienceBuffer:
 
     def __init__(self):
@@ -319,8 +332,16 @@ class ExperienceBuffer:
 
 
 if __name__ == "__main__":
-    game = Game(5, 5, 5)
+    game = Game(3, 3, 3, automatic_players = [1, 2], manual_players = [1], display = True)
     # state = game.resulting_state(game.state, (1,1), 1)
+    # state = game.resulting_state(state, (2,2), 2)
+    # state = game.resulting_state(state, (1,2), 1)
+    # state = game.resulting_state(state, (1,3), 2)
     # game.drawboard(state)
-    # print(game.is_terminal(state, (1,1), 1))
+    # new_state = game.resulting_state(state, (2,3), 1)
+    # alpha = -float('inf')
+    # beta = float('inf')
+    # v_new = game.min_value(new_state, alpha, beta, (2,3), 0)
+    # print(v_new)
+    # print(game.max_action(state))
     game.play()
