@@ -382,16 +382,5 @@ class ExperienceBuffer:
         self.buffer.clear()
 
 if __name__ == "__main__":
-    game = Game(4, 4, 4, automatic_players = [1,2], manual_players = [], display = True)
-    # state = game.resulting_state(game.state, (1,1), 1)
-    # state = game.resulting_state(state, (2,2), 2)
-    # state = game.resulting_state(state, (1,2), 1)
-    # state = game.resulting_state(state, (1,3), 2)
-    # game.drawboard(state)
-    # new_state = game.resulting_state(state, (2,3), 1)
-    # alpha = -float('inf')
-    # beta = float('inf')
-    # v_new = game.min_value(new_state, alpha, beta, (2,3), 0)
-    # print(v_new)
-    # print(game.max_action(state))
+    game = Game(4, 4, 4, automatic_players = [1,2], manual_players = [1], display = True)
     game.play()
