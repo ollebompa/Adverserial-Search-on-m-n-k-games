@@ -141,11 +141,8 @@ class Game(object):
         v_buffer, cut_flag = self.buffer.lookup(state)
         if v_buffer == None:
             pass
-        elif v_buffer != None and not cut_flag:
+        elif v_buffer != None:
             return v_buffer
-        elif v_buffer != None and cut_flag:
-            if v_buffer >= beta:
-                return v_buffer
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 1)
             v_new = self.min_value(new_state, alpha, beta, action, depth + 1)
@@ -155,12 +152,7 @@ class Game(object):
                     self.action_values[action][0] = v_new
                 else:
                     self.action_values[action] = [v_new, False]
-            if v >= beta:
-                self.buffer.add(state, v, True)
-                if depth == 1:
-                    self.action_values[last_action] = [None, True]
-                return v
-            alpha = max(alpha, v)
+
         self.buffer.add(state, v, False)
         return v
 
@@ -174,11 +166,8 @@ class Game(object):
         v_buffer, cut_flag = self.buffer.lookup(state)
         if v_buffer == None:
             pass
-        elif v_buffer != None and not cut_flag:
+        elif v_buffer != None:
             return v_buffer
-        elif v_buffer != None and cut_flag:
-            if v_buffer <= alpha:
-                return v_buffer
         for action in self.actions(state):
             new_state = self.resulting_state(state, action, 2)
             v_new = self.max_value(new_state, alpha, beta, action, depth + 1)
@@ -188,12 +177,7 @@ class Game(object):
                     self.action_values[action][0] = v_new
                 else:
                     self.action_values[action] = [v_new, False]
-            if v <= alpha:
-                self.buffer.add(state, v, True)
-                if depth == 1:
-                    self.action_values[last_action] = [None, True]
-                return v
-            beta = min(beta, v)
+
         self.buffer.add(state, v, False)
         return v
 
