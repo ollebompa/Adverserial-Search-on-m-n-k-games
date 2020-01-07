@@ -7,7 +7,7 @@ def main():
     '''
     Setup and play the game. Running minimax.py calls this function.
     '''
-    game = Game(3, 3, 3, automatic_players = [2], manual_players = [1], display = True)
+    game = Game(3, 3, 3, automatic_players = [1,2], manual_players = [1], display = True)
     game.play()
 
 UPPER_CASE_OFFSET = 64
